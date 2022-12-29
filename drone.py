@@ -1,6 +1,17 @@
 from djitellopy import tello
+from contextlib import contextmanager
 import mediapipe as mp
-import subprocess, cv2
+import subprocess, cv2, threading, os, sys
+
+@contextmanager
+def suppress_stdout():
+  with open(os.devnull, "w") as devnull:
+    old_stdout = sys.stdout
+    sys.stdout = devnull
+    try:
+      yield
+    finally:
+      sys.stdout = old_stdout
 
 """
 Mediapipe face mesh constants.
@@ -8,6 +19,11 @@ Mediapipe face mesh constants.
 MP_FACE_MESH = mp.solutions.face_mesh
 MP_DRAWING = mp.solutions.drawing_utils
 MP_DRAWING_STYLES = mp.solutions.drawing_styles
+
+drone = None
+kill_stream = False
+stream_thread_running = False
+halt_program = False
 
 def add_mp_face_mesh(face_mesh_params, image):
   """
@@ -51,6 +67,31 @@ def add_mp_face_mesh(face_mesh_params, image):
   # Return the modified image.
   return image
 
+def show_stream():
+  """
+  Begins streaming feed from drone to window. This should be called in a seperate
+  thread in order to still allow for messages to be received and responded to
+  by the main thread.
+  """
+  global stream_thread_running
+
+  # Add the face mesh and display the live feed.
+  # with suppress_stdout:
+  with MP_FACE_MESH.FaceMesh(
+    max_num_faces=1,
+    refine_landmarks=True,
+    min_detection_confidence=0.5,
+    min_tracking_confidence=0.5) as face_mesh:
+    
+    # Continue showing the live feed until the user exits.
+    while not kill_stream:
+      cv2.imshow('MediaPipe Face Mesh', add_mp_face_mesh(face_mesh, drone.get_frame_read().frame))
+      if(not stream_thread_running):
+        stream_thread_running = True
+      if cv2.waitKey(5) & 0xFF == 27:
+        break
+    stream_thread_running = False
+    cv2.destroyAllWindows()
 
 def connect_to_drone() -> tello.Tello:
   """
@@ -58,6 +99,7 @@ def connect_to_drone() -> tello.Tello:
   the drone cannot be connected to the program. Returns the drone object or .
   """
   try:
+    global drone 
     drone = tello.Tello()
     drone.connect()
     print("Drone connected!")
@@ -82,30 +124,46 @@ def main() -> None:
     print("Error: not connected to drone network!")
     exit()
 
+  # Begin displaying the stream in a seperate thread.
+  drone.streamon()
+  STREAM_THREAD = threading.Thread(target=show_stream)
+  STREAM_THREAD.start()
+
+  # Wait for the stream thread to begin displaying.
+  global stream_thread_running
+  while not stream_thread_running:
+    pass
+
   # Begin the event loop for user commands.
-  while True:
+  global halt_program
+  while not halt_program:
     cmd = input("Enter drone command: ")
     
-    match cmd:
-      case "takeoff":
-        drone.takeoff()
-      case "land":
-        drone.land()
-      case "streamon":
-        drone.streamon()
+    try:
+      match cmd:
+        case "takeoff":
+          drone.takeoff()
+        case "land":
+          drone.land()
+        case "emergency":
+          drone.emergency()
 
-        # Add the face mesh and display the live feed.
-        with MP_FACE_MESH.FaceMesh(
-          max_num_faces=1,
-          refine_landmarks=True,
-          min_detection_confidence=0.5,
-          min_tracking_confidence=0.5) as face_mesh:
-          
-          # Continue showing the live feed until the user exits.
-          while True:
-            cv2.imshow('MediaPipe Face Mesh', add_mp_face_mesh(face_mesh, drone.get_frame_read().frame))
-            if cv2.waitKey(5) & 0xFF == 27:
-              break
+        # Land the drone, end the stream, and kill the stream thread.
+        case "stop" | "off" | "end" | "kill":
+          try: 
+            drone.land()
+          except:
+            pass
+          global kill_stream 
+          kill_stream = True
+          STREAM_THREAD.join()
+          drone.streamoff()
+          halt_program = True
+        case _:
+          print("Unknown command.")
+    except:
+      print("There was an issue giving your command.")
+
 
 if __name__ == "__main__":
   main()
