@@ -1,6 +1,7 @@
 from djitellopy import tello
 import numpy as np
 import subprocess, cv2, threading, sys
+from multiprocessing import Process
 from object_detection import ObjectDetection
 
 # Wi-Fi command for Windows vs. Mac.
@@ -15,9 +16,10 @@ halt_program = False
 
 # Display the stream from the drone. This function should be run in a seperate
 # thread in order to allow for more commands to be sent to the drone.
-def show_stream():
+def show_stream(drone):
   global stream_thread_running
   det_obj = ObjectDetection(None, np.array([34, 56, 61]), np.array([68, 210, 180]))
+  print(drone)
 
   # Continue showing the live feed until the user exits.
   while not kill_stream:
@@ -58,6 +60,7 @@ def connect_to_drone() -> tello.Tello:
 def main() -> None:
 
   # Connect to drone only if on the correct network.
+  global drone
   if len(sys.argv) < 2 or not sys.argv[1] == "mac" and not sys.argv[1] == "windows":
     print("Error: invalid argument for OS: 'python drone.py [mac | windows]''")
     exit()
@@ -79,13 +82,14 @@ def main() -> None:
 
   # Begin displaying the stream in a seperate thread.
   drone.streamon()
-  STREAM_THREAD = threading.Thread(target=show_stream)
+  STREAM_THREAD = Process(target=show_stream, args=(drone,))
   STREAM_THREAD.start()
 
-  # Wait for the stream thread to begin displaying.
-  global stream_thread_running
-  while not stream_thread_running:
-    pass
+  # FIXME: need shared memory for this.
+  # # Wait for the stream thread to begin displaying.
+  # global stream_thread_running
+  # while not stream_thread_running:
+  #   pass
 
   # Begin the event loop for user commands.
   global halt_program
@@ -105,9 +109,10 @@ def main() -> None:
             drone.land()
           except:
             pass
-          global kill_stream 
-          kill_stream = True
-          STREAM_THREAD.join()
+          # FIXME: need shared memory for this.
+          # global kill_stream 
+          # kill_stream = True
+          # STREAM_THREAD.join()
           drone.streamoff()
           halt_program = True
         case _:
