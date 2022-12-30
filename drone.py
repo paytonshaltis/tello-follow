@@ -1,17 +1,6 @@
 from djitellopy import tello
-from contextlib import contextmanager
 import mediapipe as mp
-import subprocess, cv2, threading, os, sys
-
-@contextmanager
-def suppress_stdout():
-  with open(os.devnull, "w") as devnull:
-    old_stdout = sys.stdout
-    sys.stdout = devnull
-    try:
-      yield
-    finally:
-      sys.stdout = old_stdout
+import subprocess, cv2, threading
 
 """
 Mediapipe face mesh constants.
