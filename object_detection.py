@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+from ranges import RANGES
 
 class ObjectDetection:
 
@@ -133,7 +134,8 @@ class ObjectDetection:
 # Entry point of the program.
 def main():
   print("Starting object recognition...")
-  objr = ObjectDetection(cv2.VideoCapture(0), [(np.array([34, 56, 61]), np.array([68, 210, 180]))] )
+  # objr = ObjectDetection(cv2.VideoCapture(0), [(np.array([34, 56, 61]), np.array([68, 210, 180]))] )
+  objr = ObjectDetection(cv2.VideoCapture(0), RANGES['lime'])
   print("Frame Resolution:", f'{objr.width}x{objr.height}')
 
   while objr.cap.isOpened():

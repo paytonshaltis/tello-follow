@@ -3,6 +3,7 @@ import numpy as np
 import subprocess, cv2, threading, sys
 from multiprocessing import Process
 from object_detection import ObjectDetection
+from ranges import RANGES
 
 # Wi-Fi command for Windows vs. Mac.
 WIN_WIFI = ['netsh', 'wlan', 'show', 'interfaces']
@@ -18,7 +19,7 @@ halt_program = False
 # thread in order to allow for more commands to be sent to the drone.
 def show_stream(drone):
   global stream_thread_running
-  det_obj = ObjectDetection(None, np.array([34, 56, 61]), np.array([68, 210, 180]))
+  det_obj = ObjectDetection(None, RANGES['lime'])
   print(drone)
 
   # Continue showing the live feed until the user exits.
