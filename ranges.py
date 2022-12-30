@@ -12,3 +12,7 @@ LIME_RANGES = [
   (np.array([22, 146, 73]), np.array([98, 223, 237])),
   (np.array([22, 114, 119]), np.array([89, 224, 233])),
 ]
+
+PINK_RANGES = [
+  (np.array([165, 104, 165]), np.array([179, 166, 255])),
+]
