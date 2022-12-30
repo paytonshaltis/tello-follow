@@ -4,18 +4,22 @@ import numpy as np
 class ObjectDetection:
 
   # Constructor for an ObjectDetection object.
-  def __init__(self, lb, ub, capture_device=0, ):
+  def __init__(self, cap, lb, ub ):
 
     # Video capture device.
-    self.cap = cv2.VideoCapture(capture_device)
+    self.cap = cap
 
     # Upper and lower bounds for desired color
     self.lb = lb 
     self.ub = ub
 
     # Get the dimensions of the video feed.
-    self.width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    self.height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    if self.cap:
+      self.width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+      self.height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    else:
+      self.width = 960
+      self.height = 720
 
   # Determines the region that a point is in based on the dimensions of the
   # video feed. Returns an integer from 1-9 representing the region.
@@ -93,26 +97,39 @@ class ObjectDetection:
     else:
         return
 
-# Entry point of the program.
-def main():
-  print("Starting object recognition...")
-  objr = ObjectDetection(np.array([34, 56, 61]),   np.array([68, 210, 180]), 0)
-  print("Frame Resolution:", f'{objr.width}x{objr.height}')
-
-  while objr.cap.isOpened():
-    # Capture the next frame, convert to HSV, and create a mask.
-    ret, img = objr.cap.read()
-    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-    mask = cv2.inRange(hsv, objr.lb, objr.ub)
+  # Process and return a single frame of the video feed. This includes adding
+  # a bounding box around the object, and drawing a grid to segment the video
+  # feed into 9 equal regions, and determining the region that the object is
+  # in.
+  def process_frame(self, frame):
+    # Convert the frame to HSV and apply a mask to filter out the object.
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    mask = cv2.inRange(hsv, self.lb, self.ub)
 
     # Add bounding box around the object, and determine the region it is in.
     region = -1
-    bounding_coords = objr.add_bounding_box(img, mask)
+    bounding_coords = self.add_bounding_box(frame, mask)
     if len(bounding_coords) >= 1:
-      region = objr.get_region(bounding_coords[0])
-
+      region = self.get_region(bounding_coords[0])
+    
     # Add grid lines to the frame and color the region the object is in.
-    objr.add_grid(img, region)
+    self.add_grid(frame, region)
+
+    # Return the frame.
+    return frame
+
+# Entry point of the program.
+def main():
+  print("Starting object recognition...")
+  objr = ObjectDetection(cv2.VideoCapture(0), np.array([34, 56, 61]), np.array([68, 210, 180]))
+  print("Frame Resolution:", f'{objr.width}x{objr.height}')
+
+  while objr.cap.isOpened():
+    # Capture the next frame.
+    ret, img = objr.cap.read()
+
+    # Process the frame.
+    img = objr.process_frame(img)
 
     # Display the resulting frame (uncomment to display mask).
     # cv2.imshow('img', cv2.flip(mask, 1))

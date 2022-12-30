@@ -1,86 +1,42 @@
 from djitellopy import tello
-import mediapipe as mp
-import subprocess, cv2, threading
+import numpy as np
+import subprocess, cv2, threading, sys
+from object_detection import ObjectDetection
 
-"""
-Mediapipe face mesh constants.
-"""
-MP_FACE_MESH = mp.solutions.face_mesh
-MP_DRAWING = mp.solutions.drawing_utils
-MP_DRAWING_STYLES = mp.solutions.drawing_styles
+# Wi-Fi command for Windows vs. Mac.
+WIN_WIFI = ['netsh', 'wlan', 'show', 'interfaces']
+MAC_WIFI = ['/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport', '-I']
 
+# Global variables needed by multiple functions.
 drone = None
 kill_stream = False
 stream_thread_running = False
 halt_program = False
 
-def add_mp_face_mesh(face_mesh_params, image):
-  """
-  Modifies the passed image and returns a new one. This image is modified with
-  the mediapipe face mesh overlay for detecting facial features. Also requires
-  the tuple of face mesh params.
-  """
-  # To improve performance, optionally mark the image as not writeable to
-  # pass by reference.
-  image.flags.writeable = False
-  image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-  results = face_mesh_params.process(image)
-
-  # Draw the face mesh annotations on the image.
-  image.flags.writeable = True
-  image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-  if results.multi_face_landmarks:
-    for face_landmarks in results.multi_face_landmarks:
-      MP_DRAWING.draw_landmarks(
-          image=image,
-          landmark_list=face_landmarks,
-          connections=MP_FACE_MESH.FACEMESH_TESSELATION,
-          landmark_drawing_spec=None,
-          connection_drawing_spec=MP_DRAWING_STYLES
-          .get_default_face_mesh_tesselation_style())
-      MP_DRAWING.draw_landmarks(
-          image=image,
-          landmark_list=face_landmarks,
-          connections=MP_FACE_MESH.FACEMESH_CONTOURS,
-          landmark_drawing_spec=None,
-          connection_drawing_spec=MP_DRAWING_STYLES
-          .get_default_face_mesh_contours_style())
-      MP_DRAWING.draw_landmarks(
-          image=image,
-          landmark_list=face_landmarks,
-          connections=MP_FACE_MESH.FACEMESH_IRISES,
-          landmark_drawing_spec=None,
-          connection_drawing_spec=MP_DRAWING_STYLES
-          .get_default_face_mesh_iris_connections_style())
-
-  # Return the modified image.
-  return image
-
+# Display the stream from the drone. This function should be run in a seperate
+# thread in order to allow for more commands to be sent to the drone.
 def show_stream():
-  """
-  Begins streaming feed from drone to window. This should be called in a seperate
-  thread in order to still allow for messages to be received and responded to
-  by the main thread.
-  """
   global stream_thread_running
+  det_obj = ObjectDetection(None, np.array([34, 56, 61]), np.array([68, 210, 180]))
 
-  # Add the face mesh and display the live feed.
-  # with suppress_stdout:
-  with MP_FACE_MESH.FaceMesh(
-    max_num_faces=1,
-    refine_landmarks=True,
-    min_detection_confidence=0.5,
-    min_tracking_confidence=0.5) as face_mesh:
+  # Continue showing the live feed until the user exits.
+  while not kill_stream:
+    # Get the next frame from the drone.
+    img = drone.get_frame_read().frame
+
+    # Process the frame.
+    det_obj.process_frame(img)
     
-    # Continue showing the live feed until the user exits.
-    while not kill_stream:
-      cv2.imshow('MediaPipe Face Mesh', add_mp_face_mesh(face_mesh, drone.get_frame_read().frame))
-      if(not stream_thread_running):
-        stream_thread_running = True
-      if cv2.waitKey(5) & 0xFF == 27:
-        break
-    stream_thread_running = False
-    cv2.destroyAllWindows()
+    # Display the resulting frame (uncomment to display mask).
+    # cv2.imshow('img', cv2.flip(mask, 1))
+    cv2.imshow('img2', cv2.flip(img, 1))
+
+    if(not stream_thread_running):
+      stream_thread_running = True
+    if cv2.waitKey(5) & 0xFF == 27:
+      break
+  stream_thread_running = False
+  cv2.destroyAllWindows()
 
 def connect_to_drone() -> tello.Tello:
   """
@@ -98,20 +54,28 @@ def connect_to_drone() -> tello.Tello:
     print("Error connecting to drone.")
     exit()
 
+# Entry point of the program.
 def main() -> None:
-  """
-  Drone program main function. Includes the main loop of the program for object
-  or face detection, drone adjustement, and drone movement.
-  """
 
   # Connect to drone only if on the correct network.
-  print("Checking for connection to drone network...")
-  if subprocess.check_output(['netsh', 'WLAN', 'show', 'interfaces']).decode('utf-8').find("TELLO-") != -1:
-    print("Connected to drone network!")
-    drone = connect_to_drone()
-  else:
-    print("Error: not connected to drone network!")
+  if len(sys.argv) < 2 or not sys.argv[1] == "mac" and not sys.argv[1] == "windows":
+    print("Error: invalid argument for OS: 'python drone.py [mac | windows]''")
     exit()
+  print("Checking for connection to drone network...")
+  if sys.argv[1] == "mac":
+    if subprocess.check_output(MAC_WIFI).decode('utf-8').find("TELLO-") != -1:
+      print("Connected to drone network!")
+      drone = connect_to_drone()
+    else:
+      print("Error: not connected to drone network!")
+      exit()
+  elif sys.argv[1] == "windows":
+    if subprocess.check_output(WIN_WIFI).decode('utf-8').find("TELLO-") != -1:
+      print("Connected to drone network!")
+      drone = connect_to_drone()
+    else:
+      print("Error: not connected to drone network!")
+      exit()
 
   # Begin displaying the stream in a seperate thread.
   drone.streamon()
@@ -136,8 +100,6 @@ def main() -> None:
           drone.land()
         case "emergency":
           drone.emergency()
-
-        # Land the drone, end the stream, and kill the stream thread.
         case "stop" | "off" | "end" | "kill":
           try: 
             drone.land()
@@ -152,7 +114,6 @@ def main() -> None:
           print("Unknown command.")
     except:
       print("There was an issue giving your command.")
-
 
 if __name__ == "__main__":
   main()
