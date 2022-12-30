@@ -101,7 +101,7 @@ class ObjectDetection:
   # a bounding box around the object, and drawing a grid to segment the video
   # feed into 9 equal regions, and determining the region that the object is
   # in.
-  def process_frame(self, frame):
+  def process_frame(self, frame) -> tuple:
     # Convert the frame to HSV and apply mask(s) to filter out the object.
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
     mask = None
@@ -128,8 +128,8 @@ class ObjectDetection:
     # Add grid lines to the frame and color the region the object is in.
     self.add_grid(frame, region)
 
-    # Return the frame.
-    return frame
+    # Return the frame and the region the object is in.
+    return (frame, region)
 
 # Entry point of the program.
 def main():
@@ -143,7 +143,7 @@ def main():
     ret, img = objr.cap.read()
 
     # Process the frame.
-    img = objr.process_frame(img)
+    img, _ = objr.process_frame(img)
 
     # Display the resulting frame (uncomment to display mask).
     # cv2.imshow('img', cv2.flip(mask, 1))

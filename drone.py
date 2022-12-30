@@ -1,9 +1,8 @@
 from djitellopy import tello
-import numpy as np
-import subprocess, cv2, threading, sys
-from multiprocessing import Process
+import subprocess, cv2, sys, time
 from object_detection import ObjectDetection
 from ranges import RANGES
+from threading import Thread
 
 # Wi-Fi command for Windows vs. Mac.
 WIN_WIFI = ['netsh', 'wlan', 'show', 'interfaces']
@@ -12,15 +11,44 @@ MAC_WIFI = ['/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Cur
 # Global variables needed by multiple functions.
 drone = None
 kill_stream = False
-stream_thread_running = False
-halt_program = False
+kill_cmd_loop = False
+stream_started = False
+
+# Adjusts the drone's position based on the region the object is in. The drone
+# will move up, down, left, and right to try and center the object in the frame.
+def adjust_drone_position(drone, region):
+  match region:
+    case 1:
+      drone.move_left(20)
+      drone.move_up(20)
+    case 2:
+      drone.move_up(20)
+    case 3:
+      drone.move_right(20)
+      drone.move_up(20)
+    case 4:
+      drone.move_left(20)
+    case 5:
+      pass
+    case 6:
+      drone.move_right(20)
+    case 7:
+      drone.move_left(20)
+      drone.move_down(20)
+    case 8:
+      drone.move_down(20)
+    case 9:
+      drone.move_right(20)
+      drone.move_down(20)
+    case _:
+      pass
 
 # Display the stream from the drone. This function should be run in a seperate
 # thread in order to allow for more commands to be sent to the drone.
 def show_stream(drone):
-  global stream_thread_running
   det_obj = ObjectDetection(None, RANGES['lime'])
-  print(drone)
+
+  global kill_stream, stream_started
 
   # Continue showing the live feed until the user exits.
   while not kill_stream:
@@ -28,18 +56,20 @@ def show_stream(drone):
     img = drone.get_frame_read().frame
 
     # Process the frame.
-    det_obj.process_frame(img)
+    img, region = det_obj.process_frame(img)
+
+    # Adjust the drone's position based on the region.
+    # adjust_drone_position(drone, region)
+    
+    if not stream_started:
+      stream_started = True
     
     # Display the resulting frame (uncomment to display mask).
     # cv2.imshow('img', cv2.flip(mask, 1))
     cv2.imshow('img2', cv2.flip(img, 1))
-
-    if(not stream_thread_running):
-      stream_thread_running = True
     if cv2.waitKey(5) & 0xFF == 27:
       break
-  stream_thread_running = False
-  cv2.destroyAllWindows()
+
 
 def connect_to_drone() -> tello.Tello:
   """
@@ -56,6 +86,41 @@ def connect_to_drone() -> tello.Tello:
   except:
     print("Error connecting to drone.")
     exit()
+
+# Executes a command given by either the user or the object detection algorithm.
+# A copy of this funciton should be run in a seperate thread in order to allow
+# for more commands to be sent to the drone while streaming in the main thread.
+def execute_command(drone):
+  global kill_stream, kill_cmd_loop, stream_started
+
+  # Wait for initial FFMpeg output to pass and stream to appear.
+  while not stream_started:
+    pass
+  time.sleep(2)
+
+  while not kill_cmd_loop:
+    cmd = input("Enter drone command: ")
+    try:
+      match cmd:
+        case "takeoff":
+          drone.takeoff()
+        case "land":
+          drone.land()
+        case "emergency":
+          drone.emergency()
+        case "stop" | "off" | "end" | "kill":
+          kill_cmd_loop = True
+          kill_stream = True
+          drone.streamoff()
+          try: 
+            drone.land()
+          except:
+            pass
+          break
+        case _:
+          print("Unknown command.")
+    except:
+      print("There was an issue giving your command.")
 
 # Entry point of the program.
 def main() -> None:
@@ -81,45 +146,18 @@ def main() -> None:
       print("Error: not connected to drone network!")
       exit()
 
-  # Begin displaying the stream in a seperate thread.
+  # Begin the thread for entering additional drone commands.
+  cmd_thread = Thread(target=execute_command, args=(drone,))
+  cmd_thread.start()
+
+  # Start streaming the drone's video feed. This will result in the main
+  # thread entering an infinite render loop. Use 'esc' to exit.
   drone.streamon()
-  STREAM_THREAD = Process(target=show_stream, args=(drone,))
-  STREAM_THREAD.start()
+  show_stream(drone)
+  cv2.destroyAllWindows()
 
-  # FIXME: need shared memory for this.
-  # # Wait for the stream thread to begin displaying.
-  # global stream_thread_running
-  # while not stream_thread_running:
-  #   pass
-
-  # Begin the event loop for user commands.
-  global halt_program
-  while not halt_program:
-    cmd = input("Enter drone command: ")
-    
-    try:
-      match cmd:
-        case "takeoff":
-          drone.takeoff()
-        case "land":
-          drone.land()
-        case "emergency":
-          drone.emergency()
-        case "stop" | "off" | "end" | "kill":
-          try: 
-            drone.land()
-          except:
-            pass
-          # FIXME: need shared memory for this.
-          # global kill_stream 
-          # kill_stream = True
-          # STREAM_THREAD.join()
-          drone.streamoff()
-          halt_program = True
-        case _:
-          print("Unknown command.")
-    except:
-      print("There was an issue giving your command.")
+  # Wait for the user to enter a command to stop the program.
+  cmd_thread.join()
 
 if __name__ == "__main__":
   main()
