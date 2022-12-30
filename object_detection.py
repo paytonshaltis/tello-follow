@@ -4,14 +4,13 @@ import numpy as np
 class ObjectDetection:
 
   # Constructor for an ObjectDetection object.
-  def __init__(self, cap, lb, ub ):
+  def __init__(self, cap, bounds):
 
     # Video capture device.
     self.cap = cap
 
     # Upper and lower bounds for desired color
-    self.lb = lb 
-    self.ub = ub
+    self.bounds = bounds
 
     # Get the dimensions of the video feed.
     if self.cap:
@@ -102,9 +101,22 @@ class ObjectDetection:
   # feed into 9 equal regions, and determining the region that the object is
   # in.
   def process_frame(self, frame):
-    # Convert the frame to HSV and apply a mask to filter out the object.
+    # Convert the frame to HSV and apply mask(s) to filter out the object.
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-    mask = cv2.inRange(hsv, self.lb, self.ub)
+    mask = None
+
+    # If only a single bound is provided, that is the mask.
+    if len(self.bounds) == 1:
+      self.lb, self.ub = self.bounds[0]
+      mask = cv2.inRange(hsv, self.lb, self.ub)
+
+    # If multiple bounds are provided, combine them into a single mask.
+    for bound in self.bounds:
+      self.lb, self.ub = bound
+      if mask is None:
+        mask = cv2.inRange(hsv, self.lb, self.ub)
+      else:
+        mask = cv2.bitwise_or(mask, cv2.inRange(hsv, self.lb, self.ub)) 
 
     # Add bounding box around the object, and determine the region it is in.
     region = -1
@@ -121,7 +133,7 @@ class ObjectDetection:
 # Entry point of the program.
 def main():
   print("Starting object recognition...")
-  objr = ObjectDetection(cv2.VideoCapture(0), np.array([34, 56, 61]), np.array([68, 210, 180]))
+  objr = ObjectDetection(cv2.VideoCapture(0), [(np.array([34, 56, 61]), np.array([68, 210, 180]))] )
   print("Frame Resolution:", f'{objr.width}x{objr.height}')
 
   while objr.cap.isOpened():

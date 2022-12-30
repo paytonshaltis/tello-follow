@@ -57,6 +57,12 @@ while(1):
         psMax = sMax
         pvMax = vMax
 
+    # Scale the image down.
+    SCALE = 0.2
+    WIDTH = 2592 * SCALE
+    HEIGHT = 1936 * SCALE
+    result = cv2.resize(result, (int(WIDTH), int(HEIGHT)))
+
     # Display result image
     cv2.imshow('image', result)
     if cv2.waitKey(10) & 0xFF == ord('q'):
