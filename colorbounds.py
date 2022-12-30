@@ -1,11 +1,12 @@
 import cv2
+import sys
 import numpy as np
 
 def nothing(x):
     pass
 
 # Load image
-image = cv2.imread('image.jpg')
+image = cv2.imread(f'{sys.argv[1]}')
 
 # Create a window
 cv2.namedWindow('image')
