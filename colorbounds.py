@@ -1,3 +1,11 @@
+"""
+NOT WRITTEN BY PAYTON SHALTIS
+
+This is a simple script that helps determine and HSV color range for a given color
+in an image. Useful for determining the ranges for the RANGES dictionary in ranges.py.
+
+Source: https://stackoverflow.com/questions/10948589/choosing-the-correct-upper-and-lower-hsv-boundaries-for-color-detection-withcv#:~:text=HSV%20color%20thresholder%20script
+"""
 import cv2
 import sys
 import numpy as np

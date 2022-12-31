@@ -1,18 +1,36 @@
+"""
+Payton Shaltis
+12/31/2022
+
+Script for sending basic commands to a Tello drone. The script, in its main
+thread, will display the video feed from the drone, modifying each frame using
+the ObjectDetection class. The script will also create a second thread for
+sending commands to the drone. Commands implemented include:
+  - 'takeoff': Takes off the drone.
+  - 'land': Lands the drone.
+  - 'autofollow start': Enables auto-follow mode for the color range specified.
+  - 'autofollow stop': Disables auto-follow mode.
+  - 'emergency': Stops all motors immediately.
+  - 'kill': Lands the drone, stops the video stream, and exits the program. 
+"""
+
 from djitellopy import tello
-import subprocess, cv2, sys, time
 from object_detection import ObjectDetection
 from ranges import RANGES
 from threading import Thread
+import subprocess, cv2, sys, time
 
-# Wi-Fi command for Windows vs. Mac.
+# Constant values used by the program.
 WIN_WIFI = ['netsh', 'wlan', 'show', 'interfaces']
 MAC_WIFI = ['/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport', '-I']
+SPEED = 25
 
 # Global variables needed by multiple functions.
 drone = None
 kill_stream = False
 kill_cmd_loop = False
 stream_started = False
+auto_follow = False
 
 # Adjusts the drone's position based on the region the object is in. The drone
 # will move up, down, left, and right to try and center the object in the frame.
@@ -24,90 +42,92 @@ def adjust_drone_position(drone, region):
   up_down_velocity = 0
   forward_backward_velocity = 0
   yaw_velocity = 0
-  speed = 10
 
   # Adjust the velocities based on the region.
+  result = ""
   match region:
     case 1:
-      left_right_velocity = -speed
-      up_down_velocity = speed
-      print("left and up")
+      left_right_velocity = -SPEED
+      up_down_velocity = SPEED
+      result = "left and up"
     case 2:
-      up_down_velocity = speed
-      print("up")
-    case 3:
-      left_right_velocity = speed
-      up_down_velocity = speed
-      print("right and up")
+      up_down_velocity = SPEED
+      result = "up"
+    case 3: 
+      left_right_velocity = SPEED
+      up_down_velocity = SPEED
+      result = "right and up"
     case 4:
-      left_right_velocity = -speed
-      print("left")
+      left_right_velocity = -SPEED
+      result = "left"
     case 5:
+      result = "object centered"
       pass
-      print("center")
     case 6:
-      left_right_velocity = speed
-      print("right")
+      left_right_velocity = SPEED
+      result = "right"
     case 7:
-      left_right_velocity = -speed
-      up_down_velocity = -speed
-      print("left and down")
+      left_right_velocity = -SPEED
+      up_down_velocity = -SPEED
+      result = "left and down"
     case 8:
-      up_down_velocity = -speed
-      print("down")
+      up_down_velocity = -SPEED
+      result = "down"
     case 9:
-      left_right_velocity = speed
-      up_down_velocity = -speed
-      print("right and down")
+      left_right_velocity = SPEED
+      up_down_velocity = -SPEED
+      result = "right and down"
     case _:
+      result = "object not found"
       pass
-      print("no object in sight.")
 
   # Send the command to the drone.
   drone.send_rc_control(left_right_velocity, forward_backward_velocity, up_down_velocity, yaw_velocity)
 
+  # Print the direction the drone is moving in.
+  return result
+
 # Display the stream from the drone. This function should be run in a seperate
 # thread in order to allow for more commands to be sent to the drone.
 def show_stream(drone):
-  det_obj = ObjectDetection(None, RANGES['pink'])
-
-  global kill_stream, stream_started
-  count = 0
+  det_obj = ObjectDetection(RANGES['lime'])
+  global kill_stream, stream_started, auto_follow
+  prev_direction = ""
 
   # Continue showing the live feed until the user exits.
   while not kill_stream:
-    # Get the next frame from the drone.
-    img = drone.get_frame_read().frame
-    count += 1
+    # Get and process the next frame from the drone.
+    img, region = det_obj.process_frame(drone.get_frame_read().frame)
 
-    # Process the frame.
-    img, region = det_obj.process_frame(img)
-
-    # Adjust the drone's position based on the region.
-    if count % 10 == 0:
-      adjust_drone_position(drone, region)
-    
-    if not stream_started:
-      stream_started = True
+    # Adjust the drone's position if auto_follow is enabled.
+    if auto_follow:
+      direction = adjust_drone_position(drone, region)
+      # Print out the direction that the drone is moving; avoid duplicate prints.
+      if prev_direction != direction:
+        if direction == "object centered":
+          print("Auto Move: Object centered")
+        elif direction == "object not found":
+          print("Auto Move: Object not found")
+        else:
+          print(f'Auto Move: Moving {direction}')
+        prev_direction = direction
     
     # Display the resulting frame (uncomment to display mask).
     # cv2.imshow('img', cv2.flip(mask, 1))
+    stream_started = True
     cv2.imshow('img2', cv2.flip(img, 1))
     if cv2.waitKey(5) & 0xFF == 27:
       break
+  cv2.destroyAllWindows()
 
 
+# Connects to the drone and prints the battery level. Prints an error message if
+# the drone cannot be connected to the program. Returns the drone object or .
 def connect_to_drone() -> tello.Tello:
-  """
-  Connects to the drone and prints the battery level. Prints an error message if
-  the drone cannot be connected to the program. Returns the drone object or .
-  """
   try:
     global drone 
     drone = tello.Tello()
     drone.connect()
-    print("Drone connected!")
-    print("Battery: " + str(drone.get_battery()))
     return drone
   except:
     print("Error connecting to drone.")
@@ -116,14 +136,18 @@ def connect_to_drone() -> tello.Tello:
 # Executes a command given by either the user or the object detection algorithm.
 # A copy of this funciton should be run in a seperate thread in order to allow
 # for more commands to be sent to the drone while streaming in the main thread.
-def execute_command(drone):
-  global kill_stream, kill_cmd_loop, stream_started
+def thread_worker_commands(drone):
+  global kill_stream, kill_cmd_loop, stream_started, auto_follow
 
   # Wait for initial FFMpeg output to pass and stream to appear.
   while not stream_started:
     pass
   time.sleep(2)
 
+  print("Drone connected!")
+  print("Battery: " + str(drone.get_battery()))
+
+  # Continue taking commands until the user sends a stop command.
   while not kill_cmd_loop:
     cmd = input("Enter drone command: ")
     try:
@@ -132,12 +156,15 @@ def execute_command(drone):
           drone.takeoff()
         case "land":
           drone.land()
+        case "autofollow start":
+          auto_follow = True
+        case "autofollow stop":
+          auto_follow = False
         case "emergency":
           drone.emergency()
-        case "stop" | "off" | "end" | "kill":
+        case "kill":
           kill_cmd_loop = True
           kill_stream = True
-          drone.end()
         case _:
           print("Unknown command.")
     except:
@@ -168,7 +195,7 @@ def main() -> None:
       exit()
 
   # Begin the thread for entering additional drone commands.
-  cmd_thread = Thread(target=execute_command, args=(drone,))
+  cmd_thread = Thread(target=thread_worker_commands, args=(drone,))
   cmd_thread.start()
 
   # Start streaming the drone's video feed. This will result in the main
@@ -179,6 +206,9 @@ def main() -> None:
 
   # Wait for the user to enter a command to stop the program.
   cmd_thread.join()
-
+  print("Disconnecting from drone...")
+  drone.end()
+  print("Exited normally.")
+  
 if __name__ == "__main__":
   main()

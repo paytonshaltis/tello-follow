@@ -1,3 +1,14 @@
+"""
+Payton Shaltis
+12/31/2022
+
+This file contains a number of color ranges in a single dictionary named 'RANGES'.
+Each key in the dictionary is a color, and each value is a list of color ranges
+for that color. Each color range is a tuple of two numpy arrays, the first
+array is the lower bound, and the second array is the upper bound. Colors are in
+HSV format, and were determined using a number of images in various lighting.
+"""
+
 import numpy as np
 
 # ( [hMin, sMin, vMin], [hMax, sMax, vMax] )

@@ -1,48 +1,73 @@
+"""
+Payton Shaltis
+12/31/2022
+
+Contains the ObjectDetection class for creating ObjectDetection instances.
+An instance of the class requires a set of color ranges for the objects to be
+detected, as well as an optional VideoCapture object for the video feed. The 
+class provides one useful public method, process_frame(), which takes a frame,
+and draws a bounding box around the detected object. This method also segments
+the frame into 9 equal regions, and highlights and returns the region that the
+object is in. Getters are provided for some of the private instance variables.
+"""
+
 import cv2
-import numpy as np
 from ranges import RANGES
 
 class ObjectDetection:
 
   # Constructor for an ObjectDetection object.
-  def __init__(self, cap, bounds):
-
-    # Video capture device.
-    self.cap = cap
+  def __init__(self, bounds, cap=None):
 
     # Upper and lower bounds for desired color
-    self.bounds = bounds
+    self.__bounds = bounds
+
+    # Optional video capture device.
+    self.__cap = cap
 
     # Get the dimensions of the video feed.
-    if self.cap:
-      self.width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-      self.height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    if self.__cap:
+      self.__width = int(self.__cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+      self.__height = int(self.__cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     else:
-      self.width = 960
-      self.height = 720
+      self.__width = 960
+      self.__height = 720
+
+  # Getters for private instance variables.
+  def get_bounds(self):
+    return self.__bounds
+
+  def get_cap(self):
+    return self.__cap
+
+  def get_width(self):
+    return self.__width
+
+  def get_height(self):
+    return self.__height
 
   # Determines the region that a point is in based on the dimensions of the
   # video feed. Returns an integer from 1-9 representing the region.
-  def get_region(self, point) -> int:
+  def __get_region(self, point) -> int:
     x, y = point
-    if x < self.width//3:
-      if y < self.height//3:
+    if x < self.__width//3:
+      if y < self.__height//3:
         return 1
-      elif y < self.height//3*2:
+      elif y < self.__height//3*2:
         return 4
       else:
         return 7
-    elif x < self.width//3*2:
-      if y < self.height//3:
+    elif x < self.__width//3*2:
+      if y < self.__height//3:
         return 2
-      elif y < self.height//3*2:
+      elif y < self.__height//3*2:
         return 5
       else:
         return 8
     else:
-      if y < self.height//3:
+      if y < self.__height//3:
         return 3
-      elif y < self.height//3*2:
+      elif y < self.__height//3*2:
         return 6
       else:
         return 9
@@ -50,7 +75,7 @@ class ObjectDetection:
   # Adds bounding box around the object, returning an array of all (x,y) pairs
   # representing the center of each bounding box. The length of this array 
   # represents the number of objects detected in the frame.
-  def add_bounding_box(self, img, mask) -> list:
+  def __add_bounding_box(self, img, mask) -> list:
     points = []
     contours, _= cv2.findContours(mask, cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
     for cnt in contours:
@@ -70,30 +95,30 @@ class ObjectDetection:
   # Draws 4 lines to segment video feed into 9 equal regions. Additionally,
   # draws a red rectangle around the region that the object is in if the
   # 'region' parameter is supplied.
-  def add_grid(self, img, region=-1):
-    cv2.line(img, (self.width//3, 0), (self.width//3, self.height), (224, 224, 224), 1)
-    cv2.line(img, (self.width//3*2, 0), (self.width//3*2, self.height), (224, 224, 224), 1)
-    cv2.line(img, (0, self.height//3), (self.width, self.height//3), (224, 224, 224), 1)
-    cv2.line(img, (0, self.height//3*2), (self.width, self.height//3*2), (224, 224, 224), 1)
+  def __add_grid(self, img, region=-1):
+    cv2.line(img, (self.__width//3, 0), (self.__width//3, self.__height), (224, 224, 224), 1)
+    cv2.line(img, (self.__width//3*2, 0), (self.__width//3*2, self.__height), (224, 224, 224), 1)
+    cv2.line(img, (0, self.__height//3), (self.__width, self.__height//3), (224, 224, 224), 1)
+    cv2.line(img, (0, self.__height//3*2), (self.__width, self.__height//3*2), (224, 224, 224), 1)
 
     if region == 1:
-      cv2.rectangle(img, (0, 0), (self.width//3, self.height//3), (0, 0, 255), 1)
+      cv2.rectangle(img, (0, 0), (self.__width//3, self.__height//3), (0, 0, 255), 1)
     elif region == 2:
-      cv2.rectangle(img, (self.width//3, 0), (self.width//3*2, self.height//3), (0, 0, 255), 1)
+      cv2.rectangle(img, (self.__width//3, 0), (self.__width//3*2, self.__height//3), (0, 0, 255), 1)
     elif region == 3:
-      cv2.rectangle(img, (self.width//3*2, 0), (self.width, self.height//3), (0, 0, 255), 1)
+      cv2.rectangle(img, (self.__width//3*2, 0), (self.__width, self.__height//3), (0, 0, 255), 1)
     elif region == 4:
-      cv2.rectangle(img, (0, self.height//3), (self.width//3, self.height//3*2), (0, 0, 255), 1)
+      cv2.rectangle(img, (0, self.__height//3), (self.__width//3, self.__height//3*2), (0, 0, 255), 1)
     elif region == 5:
-      cv2.rectangle(img, (self.width//3, self.height//3), (self.width//3*2, self.height//3*2), (0, 0, 255), 1)
+      cv2.rectangle(img, (self.__width//3, self.__height//3), (self.__width//3*2, self.__height//3*2), (0, 0, 255), 1)
     elif region == 6:
-      cv2.rectangle(img, (self.width//3*2, self.height//3), (self.width, self.height//3*2), (0, 0, 255), 1)
+      cv2.rectangle(img, (self.__width//3*2, self.__height//3), (self.__width, self.__height//3*2), (0, 0, 255), 1)
     elif region == 7:
-      cv2.rectangle(img, (0, self.height//3*2), (self.width//3, self.height), (0, 0, 255), 1)
+      cv2.rectangle(img, (0, self.__height//3*2), (self.__width//3, self.__height), (0, 0, 255), 1)
     elif region == 8:
-      cv2.rectangle(img, (self.width//3, self.height//3*2), (self.width//3*2, self.height), (0, 0, 255), 1)
+      cv2.rectangle(img, (self.__width//3, self.__height//3*2), (self.__width//3*2, self.__height), (0, 0, 255), 1)
     elif region == 9:
-      cv2.rectangle(img, (self.width//3*2, self.height//3*2), (self.width, self.height), (0, 0, 255), 1)
+      cv2.rectangle(img, (self.__width//3*2, self.__height//3*2), (self.__width, self.__height), (0, 0, 255), 1)
     else:
         return
 
@@ -107,40 +132,39 @@ class ObjectDetection:
     mask = None
 
     # If only a single bound is provided, that is the mask.
-    if len(self.bounds) == 1:
-      self.lb, self.ub = self.bounds[0]
-      mask = cv2.inRange(hsv, self.lb, self.ub)
+    if len(self.__bounds) == 1:
+      lb, ub = self.__bounds[0]
+      mask = cv2.inRange(hsv, lb, ub)
 
     # If multiple bounds are provided, combine them into a single mask.
-    for bound in self.bounds:
-      self.lb, self.ub = bound
+    for bound in self.__bounds:
+      lb, ub = bound
       if mask is None:
-        mask = cv2.inRange(hsv, self.lb, self.ub)
+        mask = cv2.inRange(hsv, lb, ub)
       else:
-        mask = cv2.bitwise_or(mask, cv2.inRange(hsv, self.lb, self.ub)) 
+        mask = cv2.bitwise_or(mask, cv2.inRange(hsv, lb, ub)) 
 
     # Add bounding box around the object, and determine the region it is in.
     region = -1
-    bounding_coords = self.add_bounding_box(frame, mask)
+    bounding_coords = self.__add_bounding_box(frame, mask)
     if len(bounding_coords) >= 1:
-      region = self.get_region(bounding_coords[0])
+      region = self.__get_region(bounding_coords[0])
     
     # Add grid lines to the frame and color the region the object is in.
-    self.add_grid(frame, region)
+    self.__add_grid(frame, region)
 
     # Return the frame and the region the object is in.
     return (frame, region)
 
 # Entry point of the program.
-def main():
+def __main():
   print("Starting object recognition...")
-  # objr = ObjectDetection(cv2.VideoCapture(0), [(np.array([34, 56, 61]), np.array([68, 210, 180]))] )
-  objr = ObjectDetection(cv2.VideoCapture(0), RANGES['lime'])
-  print("Frame Resolution:", f'{objr.width}x{objr.height}')
+  objr = ObjectDetection(RANGES['lime'], cv2.VideoCapture(0))
+  print("Frame Resolution:", f'{objr.get_width()}x{objr.get_height()}')
 
-  while objr.cap.isOpened():
+  while objr.get_cap().isOpened():
     # Capture the next frame.
-    ret, img = objr.cap.read()
+    _, img = objr.get_cap().read()
 
     # Process the frame.
     img, _ = objr.process_frame(img)
@@ -152,8 +176,8 @@ def main():
       break
 
   # Release the video capture object.
-  objr.cap.release()
+  objr.get_cap().release()
   cv2.destroyAllWindows()
 
 if __name__ == "__main__":
-  main()
+  __main()
