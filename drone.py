@@ -19,29 +19,39 @@ stream_started = False
 def adjust_drone_position(drone, region):
   match region:
     case 1:
-      drone.move_left(20)
-      drone.move_up(20)
+      # drone.move_left(20)
+      # drone.move_up(20)
+      print("left and up")
     case 2:
-      drone.move_up(20)
+      # drone.move_up(20)
+      print("up")
     case 3:
-      drone.move_right(20)
-      drone.move_up(20)
+      # drone.move_right(20)
+      # drone.move_up(20)
+      print("right and up")
     case 4:
-      drone.move_left(20)
+      # drone.move_left(20)
+      print("left")
     case 5:
       pass
+      print("center")
     case 6:
-      drone.move_right(20)
+      # drone.move_right(20)
+      print("right")
     case 7:
-      drone.move_left(20)
-      drone.move_down(20)
+      # drone.move_left(20)
+      # drone.move_down(20)
+      print("left and down")
     case 8:
-      drone.move_down(20)
+      # drone.move_down(20)
+      print("down")
     case 9:
-      drone.move_right(20)
-      drone.move_down(20)
+      # drone.move_right(20)
+      # drone.move_down(20)
+      print("right and down")
     case _:
       pass
+      print("no object in sight.")
 
 # Display the stream from the drone. This function should be run in a seperate
 # thread in order to allow for more commands to be sent to the drone.
@@ -59,7 +69,7 @@ def show_stream(drone):
     img, region = det_obj.process_frame(img)
 
     # Adjust the drone's position based on the region.
-    # adjust_drone_position(drone, region)
+    adjust_drone_position(drone, region)
     
     if not stream_started:
       stream_started = True
@@ -111,12 +121,7 @@ def execute_command(drone):
         case "stop" | "off" | "end" | "kill":
           kill_cmd_loop = True
           kill_stream = True
-          drone.streamoff()
-          try: 
-            drone.land()
-          except:
-            pass
-          break
+          drone.end()
         case _:
           print("Unknown command.")
     except:
