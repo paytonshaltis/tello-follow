@@ -16,60 +16,76 @@ stream_started = False
 
 # Adjusts the drone's position based on the region the object is in. The drone
 # will move up, down, left, and right to try and center the object in the frame.
+# The velocities will be set for each direction, and set to 0 if the object
+# is already in the center of the frame.
 def adjust_drone_position(drone, region):
+  # Velocities to be modified based on the region.
+  left_right_velocity = 0
+  up_down_velocity = 0
+  forward_backward_velocity = 0
+  yaw_velocity = 0
+  speed = 10
+
+  # Adjust the velocities based on the region.
   match region:
     case 1:
-      # drone.move_left(20)
-      # drone.move_up(20)
+      left_right_velocity = -speed
+      up_down_velocity = speed
       print("left and up")
     case 2:
-      # drone.move_up(20)
+      up_down_velocity = speed
       print("up")
     case 3:
-      # drone.move_right(20)
-      # drone.move_up(20)
+      left_right_velocity = speed
+      up_down_velocity = speed
       print("right and up")
     case 4:
-      # drone.move_left(20)
+      left_right_velocity = -speed
       print("left")
     case 5:
       pass
       print("center")
     case 6:
-      # drone.move_right(20)
+      left_right_velocity = speed
       print("right")
     case 7:
-      # drone.move_left(20)
-      # drone.move_down(20)
+      left_right_velocity = -speed
+      up_down_velocity = -speed
       print("left and down")
     case 8:
-      # drone.move_down(20)
+      up_down_velocity = -speed
       print("down")
     case 9:
-      # drone.move_right(20)
-      # drone.move_down(20)
+      left_right_velocity = speed
+      up_down_velocity = -speed
       print("right and down")
     case _:
       pass
       print("no object in sight.")
 
+  # Send the command to the drone.
+  drone.send_rc_control(left_right_velocity, forward_backward_velocity, up_down_velocity, yaw_velocity)
+
 # Display the stream from the drone. This function should be run in a seperate
 # thread in order to allow for more commands to be sent to the drone.
 def show_stream(drone):
-  det_obj = ObjectDetection(None, RANGES['lime'])
+  det_obj = ObjectDetection(None, RANGES['pink'])
 
   global kill_stream, stream_started
+  count = 0
 
   # Continue showing the live feed until the user exits.
   while not kill_stream:
     # Get the next frame from the drone.
     img = drone.get_frame_read().frame
+    count += 1
 
     # Process the frame.
     img, region = det_obj.process_frame(img)
 
     # Adjust the drone's position based on the region.
-    adjust_drone_position(drone, region)
+    if count % 10 == 0:
+      adjust_drone_position(drone, region)
     
     if not stream_started:
       stream_started = True
